@@ -1,10 +1,12 @@
 import pygame
 import sqlite3
+import sysv_ipc
+
 pygame.init()
 
 ximage=pygame.image.load("x.png")
 ximage=pygame.transform.scale(ximage,(80,80))
-oimage=pygame.image.load("0.jpg")
+oimage=pygame.image.load("O.png")
 oimage=pygame.transform.scale(oimage,(80,80))
 xrect=ximage.get_rect()
 orect=oimage.get_rect()
@@ -16,7 +18,6 @@ tictac=[[0,0,0],[0,0,0],[0,0,0]]
 database=sqlite3.connect("database.db")
 cursor=database.cursor()
 cursor.execute("CREATE TABLE IF NOT EXISTS GameScore(scoreplayer1,scoreplayer2)")
-
 
 def get_cell(pos):
     x, y = pos
@@ -64,7 +65,7 @@ def restart():
     player1score = scores[0] if scores else 0
     player2score = scores[1] if scores else 0
 
-    label = font.render(f"Player 1: {player1score} | Player 2: {player2score}", 1, (255, 255, 0))
+    label = font.render(f"Player 1: {player1score}|Player 2: {player2score}", 1, (255, 255, 0))
     screen.blit(label, (5, 280))
 
 if __name__ == "__main__":
