@@ -31,23 +31,24 @@ def draw_mark():
                 screen.blit(oimage, (col * 80, row * 80))
 
 def win(tictac):
-    if tictac[0][0]==tictac[0][1] and tictac[0][0]==tictac[0][2] and tictac[0][0]!=0:
+    for i in range(3):
+        if tictac[i][0] == tictac[i][1] == tictac[i][2] != 0:
+            return True
+        if tictac[0][i] == tictac[1][i] == tictac[2][i] != 0:
+            return True
+    if tictac[0][0] == tictac[1][1] == tictac[2][2] != 0:
         return True
-    if tictac[1][0]==tictac[1][1] and tictac[1][0]==tictac[1][2] and tictac[1][0]!=0:
+    if tictac[0][2] == tictac[1][1] == tictac[2][0] != 0:
         return True
-    if tictac[2][0]==tictac[2][1] and tictac[2][0]==tictac[2][1] and tictac[2][0]!=0:
-        return True
-    if tictac[0][0]==tictac[1][0] and tictac[0][0]==tictac[2][0] and tictac[0][0]!=0:
-        return True
-    if tictac[0][1] == tictac[1][1] and tictac[0][1] == tictac[2][1] and tictac[0][1]!=0:
-        return True
-    if tictac[0][2] == tictac[1][2] and tictac[0][2] == tictac[2][2] and tictac[0][2]!=0:
-        return True
-    if tictac[1][1] == tictac[2][2] and tictac[0][0]==tictac[1][1] and tictac[1][1]!=0:
-        return True
-    if tictac[0][2]==tictac[1][1] and tictac[0][2]==tictac[2][0] and tictac[0][2]!=0:
-        return True
+
     return False
+def draw(tictac):
+    count=0
+    for row in range(3):
+        for col in range(3):
+            if tictac[row][col]=="X" or tictac[row][col]=="O":
+                count=count+1
+    return count==9
 def restart():
     screen.fill("black")
     pygame.draw.line(screen, "white", (0, 80), (240, 80))
@@ -57,6 +58,15 @@ def restart():
     pygame.draw.line(screen, "red", (0, 240), (300, 240))
     global tictac
     tictac = [[0, 0, 0], [0, 0, 0], [0, 0, 0]]
+    cursor.execute("SELECT player1, player2 FROM GameScore ORDER BY ROWID DESC LIMIT 1")
+    scores = cursor.fetchone()
+
+    player1score = scores[0] if scores else 0
+    player2score = scores[1] if scores else 0
+
+    label = font.render(f"Player 1: {player1score} | Player 2: {player2score}", 1, (255, 255, 0))
+    screen.blit(label, (5, 280))
+
 if __name__ == "__main__":
     clock = pygame.time.Clock()
     running = True
@@ -66,7 +76,7 @@ if __name__ == "__main__":
     pygame.draw.line(screen,"white",(0,160),(240,160))
     pygame.draw.line(screen, "white", (80, 0), (80, 240))
     pygame.draw.line(screen, "white", (160, 0), (160, 240))
-    pygame.draw.line(screen, "red", (0, 240), (300,240))
+    pygame.draw.line(screen, "white", (0, 240), (300,240))
     xturn=True
     score1=0
     score2=0
@@ -83,22 +93,22 @@ if __name__ == "__main__":
                     tictac[row][col] = "X" if xturn else "O"
                     xturn = not xturn
                     draw_mark()
-                    if win(tictac) and xturn==False:
+                    if win(tictac)==True and xturn==False:
                         score1=score1+1
                         cursor.execute("""INSERT INTO GameScore VALUES 
                                        (?,?)""",(score1,score2))
                         database.commit()
                         restart()
-                    elif win(tictac) and xturn==True:
+                    elif win(tictac)==True and xturn==True:
                         score2=score2+1
                         cursor.execute("""INSERT INTO GameScore VALUES
                                         (?,?)""",(score1,score2))
                         database.commit()
                         restart()
+                    elif draw(tictac):
+                        restart()
         pygame.display.flip()
         clock.tick(60)
 
-result=cursor.execute("SELECT player1,player2 FROM GameScore")
-print(result.fetchall())
 cursor.close()
 pygame.quit()
