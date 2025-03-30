@@ -1,25 +1,33 @@
 import pygame
 import sqlite3
 import sysv_ipc
+import time
 
-
-class IPC:
+class IPC:          #class for system-v message queue
     def __init__(self):
-        self.messagequeue = sysv_ipc.MessageQueue(12345, sysv_ipc.IPC_CREAT)
-        # create the message queue with key=12345
+        connected = False
+        while not connected:
+            try:
+                self.messagequeue = sysv_ipc.MessageQueue(12345)
+                connected = True
+                print("Connected to message queue successfully")
+            except sysv_ipc.ExistentialError:
+                print("Waiting for Player 1 to create the message queue...")
+                time.sleep(2)
+
     def send(self, message):
         self.messagequeue.send(message.encode())
-       # method for placing a message inside the queue
+
     def receive(self):
         try:
             message, _ = self.messagequeue.receive(block=True)
-            return message.decode()  # method for retrieving messages from queue
+            return message.decode()
         except sysv_ipc.BusyError:
-            print("DEBUG: No message in queue")
+            print("DEBUG: No message received")
             return None
 
     def remove(self):
-        self.messagequeue.remove()
+            self.messagequeue.remove()
 
 
 pygame.init()
@@ -37,7 +45,6 @@ tictac = [[0, 0, 0], [0, 0, 0], [0, 0, 0]]
 
 database = sqlite3.connect("database.db")
 cursor = database.cursor()
-cursor.execute("CREATE TABLE IF NOT EXISTS GameScore(scoreplayer1,scoreplayer2)")  # SQL table for keeping the scores
 
 
 def get_cell(pos):  # snap to grid
@@ -86,6 +93,8 @@ def restart():  # restart the game in case of win or draw
     pygame.draw.line(screen, "red", (0, 240), (300, 240))
     global tictac
     tictac = [[0, 0, 0], [0, 0, 0], [0, 0, 0]]
+
+
     cursor.execute("SELECT scoreplayer1, scoreplayer2 FROM GameScore ORDER BY ROWID DESC LIMIT 1")
     scores = cursor.fetchone()
 
@@ -95,15 +104,15 @@ def restart():  # restart the game in case of win or draw
     label = font.render(f"Player 1: {player1score}|Player 2: {player2score}", 1, (255, 255, 0))
     screen.blit(label, (5, 280))
 
+    # Display waiting indicator (Player 1 starts)
+    waiting_label = font.render("Waiting for Player 1 (X)", 1, (255, 0, 0))
+    screen.blit(waiting_label, (5, 260))
 
-    myturn_label = font.render("Your Turn (X)", 1, (0, 255, 0))
-    screen.blit(myturn_label, (5, 260))
-
-    global xturn
-    xturn = True
+    global oturn
+    oturn = False
 
 
-def check_opponent_move():
+def check_opponent_move():          #check for player 2 movement
     response = msg.receive()
     print(response)
     if response:
@@ -112,32 +121,32 @@ def check_opponent_move():
             try:
                 col, row = int(move_data[0]), int(move_data[1])
                 if tictac[row][col] == 0:
-                    tictac[row][col] = "O"
+                    tictac[row][col] = "X"
                     draw_mark()
+
+
                     if win(tictac):
-                        global score2
-                        score2 = score2 + 1
-                        cursor.execute("INSERT INTO GameScore VALUES (?,?)", (score1, score2))
-                        database.commit()
+
                         restart()
                     elif draw(tictac):
                         restart()
                     else:
-                        global xturn
-                        xturn = True
+                        global oturn
+                        oturn = True
 
                         pygame.draw.rect(screen, (0, 0, 0), (5, 260, 200, 20))
-                        myturn_label = font.render("Your Turn (X)", 1, (0, 255, 0))
+                        myturn_label = font.render("Your Turn (O)", 1, (0, 255, 0))
                         screen.blit(myturn_label, (5, 260))
             except (ValueError, IndexError):
                 pass
+
 
 if __name__ == "__main__":
     clock = pygame.time.Clock()
     running = True
     screen = pygame.display.set_mode((240, 320))
     screen.fill("black")
-    pygame.display.set_caption("Tic-Tac-Toe - Player 1 (X)")
+    pygame.display.set_caption("Tic-Tac-Toe - Player 2 (O)")
     pygame.draw.line(screen, "white", (0, 80), (240, 80))
     pygame.draw.line(screen, "white", (0, 160), (240, 160))
     pygame.draw.line(screen, "white", (80, 0), (80, 240))
@@ -145,46 +154,55 @@ if __name__ == "__main__":
     pygame.draw.line(screen, "red", (0, 240), (300, 240))
 
 
-    myturn_label = font.render("Your Turn (X)", 1, (0, 255, 0))
-    screen.blit(myturn_label, (5, 260))
+    waiting_label = font.render("Waiting for Player 1 (X)", 1, (255, 0, 0))
+    screen.blit(waiting_label, (5, 260))
 
-    xturn = True
-    score1 = 0
-    score2 = 0
+    oturn = False
 
-    cursor.execute("DELETE FROM GameScore")
-    database.commit()
     msg = IPC()
-    print("Player 1 ready. Waiting for Player 2...")
+    print("Player 2 ready. Waiting for Player 1's move...")
+
+    cursor.execute("SELECT player1, player2 FROM GameScore ORDER BY ROWID DESC LIMIT 1")
+    scores = cursor.fetchone()
+
+    player1score = scores[0] if scores else 0
+    player2score = scores[1] if scores else 0
+
+    label = font.render(f"Player 1: {player1score}|Player 2: {player2score}", 1, (255, 255, 0))
+    screen.blit(label, (5, 280))
 
     while running:
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 running = False
                 msg.remove()
-            if event.type == pygame.MOUSEBUTTONUP and xturn:
+            if event.type == pygame.MOUSEBUTTONUP and oturn:
                 col, row = get_cell(event.pos)
                 if 0 <= row < 3 and 0 <= col < 3 and tictac[row][col] == 0:
-                    tictac[row][col] = "X"
+                    tictac[row][col] = "O"
                     draw_mark()
+
+
                     if win(tictac):
-                        score1 = score1 + 1
-                        cursor.execute("INSERT INTO GameScore VALUES (?,?)", (score1, score2))
-                        database.commit()
+
+                        msg.send(f"{col},{row}")
                         restart()
                     elif draw(tictac):
+                        msg.send(f"{col},{row}")
                         restart()
                     else:
 
                         msg.send(f"{col},{row}")
-                        xturn = False
+                        oturn = False
+
+
                         pygame.draw.rect(screen, (0, 0, 0), (5, 260, 200, 20))
-                        waiting_label = font.render("Waiting for Player 2 (O)", 1, (255, 0, 0))
+                        waiting_label = font.render("Waiting for Player 1 (X)", 1, (255, 0, 0))
                         screen.blit(waiting_label, (5, 260))
 
 
-        if not xturn:
-            response=check_opponent_move()
+        if not oturn:
+            check_opponent_move()
 
         pygame.display.flip()
         clock.tick(60)
